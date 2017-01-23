@@ -2,7 +2,7 @@
 title: "Reproducible Research: Peer Assessment 1"
 author: "Christopher Maier"
 date: "January 22, 2017"
-output:   html_document
+output:   html_document:
 keep_md: true
 ---
 
