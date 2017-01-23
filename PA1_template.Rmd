@@ -1,25 +1,191 @@
 ---
 title: "Reproducible Research: Peer Assessment 1"
-output: 
-  html_document:
-    keep_md: true
+author: "Christopher Maier"
+date: "January 22, 2017"
+output:   html_document
+keep_md: true
 ---
 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
 
-## Loading and preprocessing the data
+## **Introduction** 
+It is now possible to collect a large amount of data about personal movement using activity monitoring devices. To motivate this ability, a particular personal activity monitoring device, which is able to collect data at 5 mintute intervals throughout the day, has monitored the daily personal movement of an anonymous individual. The data collected from this individual was done so over the the months of October and November 2012 and it includes the number of steps taken in 5 minute intervals during each day.
 
+For this analysis, we seek to answer the following questions:
 
+- What is the mean total number of steps taken per day?  
+- What are the mean and median number of steps taken each day?  
+- What is the average daily activity pattern?  
+- Which 5-minute interval, on average across all the days in the dataset, contains the maximum number of steps?  
+- The data have missing values associated to particular days. After imputing an imputation strategy, do these imputed values differ from the estimates from the earlier determined values?  
+- What is the impact of imputing missing data on the estimates of the total daily number of steps?  
+- Are there differences in activity patterns between weekdays and weekends?  
 
-## What is mean total number of steps taken per day?
+## **Methods**
+The mean total number of steps taken per day will be answered by calculating the total number of steps taken per day and then drawing a histogram of the total number of steps taken each day. Additionally, the mean and median number of steps taken each day will be reported.
 
+To show what the average daily activity pattern is a time series plot of the 5-minute interval and the average number of steps taken, averaged across all days will be drawn. 
+Using this data for the averages of the 5-minute intervals across all days in the data set, the maximum number of steps will be calculated.
 
+The total number of missing values of the data set will be reported. Using the MICE (Multivariate Imputation by Chained Equations) package, these missing values will be filled for further analysis and a new data set containing, similar to the original data set will be created, however, containing these imputed missing values. After doing so, a histogram of the total number of steps taken each day will be created and the mean and total number of steps taken per day will be calculated and reported. This should seek to additionally answer whether there is any impact of imputing missing data on the estimates of the total daily number of steps via comparison.
 
-## What is the average daily activity pattern?
+Lastly, using the imputed data set, to answer whether there is any difference in activity pattern in weekend vs. weekday, a new factor variable with two levels - "weekday" and "weekend" indicating whether a given date is a weekday or weekend day - will be created. A panel plot containing a time series plot of the 5-minute interval and the average number of steps taken, averaged across all weekday days or weekend days will be drawn.
 
+## **Results**  
 
+### Loading and preprocessing the data
+In order to obtain the data for this individual, the data was downloaded from Git Hub, as shown below. Note that for the analysis, no additional data cleaning/processing was performed.
+```{r fileinput, echo=TRUE}
+# Read in data from GitHub
+# create "fileUrl" from which the data will come
+fileUrl <- "https://raw.githubusercontent.com/Mooney721/RepData_PeerAssessment1/master/activity.csv"
 
-## Imputing missing values
+# download data based on file URL and save in a destination file "./activity"
+download.file(fileUrl, destfile = "./activity")
 
+# read in activity data through .csv extension
+activity <- read.csv("activity")
+```
+### What is mean total number of steps taken per day?  
 
+One question which is sought is to answer is "What is the mean total number of steps taken per day?"  
 
-## Are there differences in activity patterns between weekdays and weekends?
+In order to do this, the total number of steps taken per day was calculated and then a corresponding histogram was drawn. 
+```{r totalSteps, fig.align = 'center', echo=TRUE}
+# Calculate the total number of steps taken per day
+totalStepsDay <- aggregate(steps ~ date, data = activity, FUN = sum)
+
+# Make a histogram of the total number of steps taken in each day
+hist(totalStepsDay$steps, main = "Total Number of Steps Taken Each Day", 
+     xlab = "Total Number of Steps",
+     ylab = "Number of Days")
+```
+It is shown that, per day, between 10,000 and 15,000 steps have occurred with the highest frequency. To be sure, the mean and median of the total number of steps taken per day were calculated.
+```{r totalMeanMedianSteps, echo=TRUE}
+# Calculate and report the mean and median of the total number of steps taken per day
+meanTotalStepsDay <- mean(totalStepsDay$steps, na.rm = TRUE)
+print(meanTotalStepsDay)
+
+medianTotalStepsDay <- median(totalStepsDay$steps, na.rm = TRUE)
+print(medianTotalStepsDay)
+```
+The mean and median of the total number of steps taken per day were determined to be `r meanTotalStepsDay` and `r medianTotalStepsDay`, respectively.  
+
+### What is the average daily activity pattern?  
+
+The next question which is sought is "What is the average daily activity pattern?". As previously mentioned, a time series plot is generated to show this, as well as to answer which 5-minute interval contains the maximum number of steps.
+```{r avgDailyPattern, fig.align = 'center', echo=TRUE}
+# Making a time series plot of the 5-minute interval and the average number of steps taken, averaged across all days
+# First, declare library(lattice) to create plot
+library(lattice)
+
+# Next, aggregate the mean number of steps by interval
+meanStepsInterval <- aggregate(steps ~ interval, data = activity, na.rm = TRUE, FUN = mean)
+
+# Drawing the time series plot
+xyplot(steps ~ interval,
+       data = meanStepsInterval,
+       type = "l",
+       main = "Mean Number of Steps per Day by Interval")
+
+# Calculating the 5-minute interval containing, on average, the maximum number of steps
+fiveMinInt <- meanStepsInterval$interval[meanStepsInterval$steps == max(meanStepsInterval$steps)]
+print(fiveMinInt)
+```
+Based on the output, the interval displayed is 835. Thus, the 5-minute interval containing, on average, the maximum number of steps, is (830, 835).
+
+### Imputing missing values  
+
+Next, the total number of missing values of the data set were be reported. This was done using the MICE (Multivariate Imputation by Chained Equations) in R. First, however, the total number of missing values in the data set (i.e., the total number of rows with NAs) were first reported.
+
+```{r missingVals, echo=TRUE}
+# Imputing missing values
+
+# Calculate and report the total number of missing values in the dataset (i.e. the total number of rows with NAs)
+missingSteps <- length(which(is.na(activity$steps == TRUE)))
+print(missingSteps)
+```
+Thus, `r missingSteps` values were missing in the data set. These values were then imputed using MICE and a new data set was created based on the original data set, but with the imputed values.
+```{r imputation1, echo=TRUE}
+# Using MICE to impute missing values
+
+# First, declare library(mice) for imputing missing values
+library(mice)
+
+# Second, use the MICE package to impute the missing values and create a new data set based on the original data set, but with imputed (no NA) values
+set.seed(1)
+activityMICE <- mice(activity)
+activityNoNA <- complete(activityMICE)
+```
+Now that a new data set, based on the original data set, but containing imputed values has been created, a histogram of the total number of steps taken each day was drawn. Additionally, the calculations for the mean and median total number of steps taken per day were performed, similar to that which was done with the original data.
+
+```{r imputation2, echo=TRUE}
+# Next, calculate the total number of steps taken per day on implemented data
+totalStepsDayNoNA <- aggregate(steps ~ date, data = activityNoNA, FUN = sum)
+
+# Make a histogram of the total number of steps taken in each day with implemented data
+hist(totalStepsDayNoNA$steps, main = "Total Number of Steps Taken Each Day", 
+     xlab = "Total Number of Steps",
+     ylab = "Number of Days")
+
+# Calculate and report the mean and median of the total number of steps taken per day on implemented data
+meanTotalStepsDayNoNA <- mean(totalStepsDayNoNA$steps)
+print(meanTotalStepsDayNoNA)
+
+medianTotalStepsDayNoNA <- median(totalStepsDayNoNA$steps)
+print(medianTotalStepsDayNoNA)
+```
+
+```{r differences, echo=TRUE}
+# Calculating differences in mean and median of imputed data vs. non-imputed data
+meanDiff <- meanTotalStepsDay - meanTotalStepsDayNoNA
+
+medianDiff <- medianTotalStepsDay - medianTotalStepsDayNoNA
+```
+In comparing against the estimates for mean and median of the total number of steps taken each day, the values from the imputation data differ from the estimates from the first part of the assignment. These new values for mean and median were, respectively, calculated to be `r meanTotalStepsDayNoNA` and `r medianTotalStepsDayNoNA`. Note that the median of the imputed data does not differ, but the mean of total number of steps taken each day of the imputed data differs by `r meanDiff`.
+
+### Are there differences in activity patterns between weekdays and weekends?  
+
+The last question to answer is "Are there differences in activity patterns between weekdays and weekends?" To answer this, a new factor variable with two levels - "weekday" and "weekend" was create and a panel plot containing a time series plot of the 5-minute interval and the average number of steps taken, averaged across all weekday days or weekend days were drawn.
+```{r weekend, fig.align = 'center', echo=TRUE}
+# Convert "date" variable to date data type
+activityNoNA$date <- as.Date(activityNoNA$date, format = "%Y-%m-%d")
+
+# Determine weekday for date
+activityNoNA$weekday <- weekdays(activityNoNA$date)
+
+# Create indicator variable for whether 'weekday' variable was a day of the week or a day of the weekend
+for (i in 1:nrow(activityNoNA))
+{
+  if ((activityNoNA$weekday[i] == "Saturday") || (activityNoNA$weekday[i] == "Sunday"))
+      {
+        activityNoNA$weekday.indicator[i] <- "weekend"
+  }
+  else
+  {
+    activityNoNA$weekday.indicator[i] <- "weekday"
+  }
+}
+
+# Create time-series plot for the number of steps per day by interval, weekday vs. weekend
+xyplot(steps ~ interval | weekday.indicator,
+       data = activityNoNA,
+       type = "l",
+       main = "Mean Number of Steps per Day by Interval",
+       sub = "Weekday vs. Weekend")
+```
+
+Ultimately, the data for weekday vs. weekend does, fundamentally look different. The data from the weekdays looks more voluminous, as expected, since it contains 5 days vs. the weekend data containing 2 days. Additionally, the weekend data seems to contain, on average, higher intervals, while the weekday data, for the most part, seems fairly evenly distributed after ~ the (495, 500) interval.
+
+## **Conclusion**
+Using data from a particular personal activity monitoring device, which is able to collect data at 5 mintute intervals throughout the day, several questions were able to be  using statistical techniques. These questions were as follows:  
+
+- What is the mean total number of steps taken per day?  
+- What are the mean and median number of steps taken each day?  
+- What is the average daily activity pattern?  
+- Which 5-minute interval, on average across all the days in the dataset, contains the maximum number of steps?  
+- The data have missing values associated to particular days. After imputing an imputation strategy, do these imputed values differ from the estimates from the earlier determined values?  
+- What is the impact of imputing missing data on the estimates of the total daily number of steps?  
+- Are there differences in activity patterns between weekdays and weekends?
